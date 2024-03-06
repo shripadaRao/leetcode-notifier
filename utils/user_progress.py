@@ -1,24 +1,6 @@
 from datetime import datetime
 import sqlite3
-
-def open_db_connection(dbname="test.db"):
-    try:
-        conn = sqlite3.connect(dbname)
-        cursor = conn.cursor()
-        return conn, cursor
-    except sqlite3.Error as e:
-        print("Error connecting to the database:", e)
-        return None, None
-
-def close_db_connection(conn):
-    if conn:
-        try:
-            conn.commit()
-            conn.close()
-        except sqlite3.Error as e:
-            print("Error closing the database connection:", e)
-
-
+from utils.database import open_db_connection, close_db_connection
 
 def fetch_user_active_planid(user_id):
     try:
@@ -32,7 +14,6 @@ def fetch_user_active_planid(user_id):
     finally:
         close_db_connection(conn)
 
-print(fetch_user_active_planid("testuser"))
 
 def fetch_daily_problem_list(user_id):
     try:
@@ -179,7 +160,6 @@ def complete_problem(user_id, problem_id):
                           WHERE user_id = ? AND problem_id = ? AND plan_id = ?''', (True, completion_date, user_id, problem_id, active_plan_id))
 
         conn.commit()
-        return True
     
     except ValueError as ve:
         return str(ve)            
@@ -189,6 +169,28 @@ def complete_problem(user_id, problem_id):
         close_db_connection(conn)
 
 
+async def fetch_problem_by_id(problem_id):
+    conn, cursor = open_db_connection()
+    response = {"problem_title": "", "problem_url": ""}
 
-# complete_problem("srao", 242)
-# print(fetch_daily_problem_list("srao"))
+    try:
+        cursor.execute("""
+        SELECT title, url
+        FROM problems
+        WHERE problem_id = ?
+        """, (problem_id,))
+
+        row = cursor.fetchone()
+
+        if row:
+            response["problem_title"] = row[0]
+            response["problem_url"] = row[1]  
+        else:
+            raise Exception("No problem details found")
+
+    except (sqlite3.Error, TypeError) as e:
+        raise Exception(f"Error fetching problem by ID: {e}")
+
+    finally:
+        close_db_connection(conn)
+        return response

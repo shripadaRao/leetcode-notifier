@@ -1,36 +1,19 @@
+from datetime import datetime
 import sqlite3
 import uuid
-
-
-def open_db_connection(dbname="test.db"):
-    try:
-        conn = sqlite3.connect(dbname)
-        cursor = conn.cursor()
-        return conn, cursor
-    except sqlite3.Error as e:
-        print("Error connecting to the database:", e)
-        return None, None
-
-def close_db_connection(conn):
-    if conn:
-        try:
-            conn.commit()
-            conn.close()
-        except sqlite3.Error as e:
-            print("Error closing the database connection:", e)
-
-
+from utils.database import open_db_connection, close_db_connection
+from config import DEFAULT_WORK_STARTING_TIME, DEFAULT_WORK_ENDING_TIME
 
 def generate_user_id():
     return str(uuid.uuid4())
 
 
-def create_user(user_id, username, email, active_plan_id=None):
+def create_user(user_id, username, email, active_plan_id=None, webhook_string = None, is_deactive=False, work_starting_time= DEFAULT_WORK_STARTING_TIME, work_ending_time=DEFAULT_WORK_ENDING_TIME):
     conn, cursor = open_db_connection()
     if conn:
         try:
-            cursor.execute('''INSERT INTO users (user_id, username, email, active_plan_id)
-                              VALUES (?, ?, ?, ?)''', (user_id, username, email, active_plan_id))
+            cursor.execute('''INSERT INTO users (user_id, username, email, active_plan_id, webhook_string, is_deactive, work_starting_time, work_ending_time)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', (user_id, username, email, active_plan_id, webhook_string, is_deactive, work_starting_time, work_ending_time))
             conn.commit()
         except sqlite3.IntegrityError as e:
             if "UNIQUE constraint failed" in str(e):
@@ -112,7 +95,6 @@ def update_plan_daily_frequency(user_id, new_frequency):
         conn, cursor = open_db_connection()
         active_plan_id = fetch_user_active_planid(user_id)
 
-        # Update the daily frequency in the plans table
         cursor.execute('''UPDATE plans
                           SET daily_problem_frequency = ?
                           WHERE plan_id = ?''', (new_frequency, active_plan_id))
@@ -125,6 +107,37 @@ def update_plan_daily_frequency(user_id, new_frequency):
         print("Error updating daily frequency:", e)
 
 
-update_plan_daily_frequency("srao", 2)
-# create_user("srao", "srao", "srao@gmail.com")
-# set_active_plan_id("srao", "cb527474-3370-4fef-bdbc-acfe8047bf5e")
+def set_user_webhook(user_id, webhook_string):
+    try:
+        conn, cursor = open_db_connection()
+
+        cursor.execute('''UPDATE users
+                          SET webhook_string = ?
+                          WHERE user_id = ?''', (webhook_string, user_id))
+
+        conn.commit()
+        close_db_connection(conn)
+        return 
+
+    except sqlite3.Error as e:
+        print("Error updating webhook:", e)
+
+
+def update_work_time_for_user(user_id, work_start_time, work_end_time):
+    conn, cursor = open_db_connection()
+    work_start_time = datetime.strptime(work_start_time, "%H:%M:%S").time().strftime("%H:%M:%S")
+    work_end_time = datetime.strptime(work_end_time, "%H:%M:%S").time().strftime("%H:%M:%S")
+
+    try:
+        cursor.execute("""
+            UPDATE users
+            SET work_starting_time = ?, work_ending_time = ?
+            WHERE user_id = ?
+        """, (work_start_time, work_end_time, user_id))
+        
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        close_db_connection(conn)
