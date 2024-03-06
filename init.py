@@ -1,25 +1,8 @@
-import sqlite3
-import uuid
 
+from utils.database import open_db_connection, close_db_connection
 from problemset_parsers import *
-
-def open_db_connection(dbname):
-    try:
-        conn = sqlite3.connect(dbname)
-        cursor = conn.cursor()
-        return conn, cursor
-    except sqlite3.Error as e:
-        print("Error connecting to the database:", e)
-        return None, None
-
-def close_db_connection(conn):
-    if conn:
-        try:
-            conn.commit()
-            conn.close()
-        except sqlite3.Error as e:
-            print("Error closing the database connection:", e)
-
+from problemset_parsers.dsa_sheet_parser import read_raw_neetcode150_problems, populate_problems_in_dsa_sheet, add_problem_id_to_dsa_sheet
+from problemset_parsers.problem_parser import populate_problems_table,  read_leetcode_problems  
 
 def create_table_data(dbname):
     conn, cursor = open_db_connection(dbname)
@@ -29,7 +12,11 @@ def create_table_data(dbname):
                         user_id TEXT PRIMARY KEY,
                         username TEXT,
                         email TEXT,
-                        active_plan_id TEXT
+                        active_plan_id TEXT,
+                        webhook_string TEXT,
+                        is_deactive BOOLEAN,
+                        work_starting_time TIME,
+                        work_ending_time TIME
                     )''')
 
     # Create the plans table
@@ -76,10 +63,33 @@ def create_table_data(dbname):
                     )''')
 
                         # FOREIGN KEY (problem_id) REFERENCES problems(problem_id)
+    
+    # Create the notification parameters table
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notification_parameter (
+                        user_id TEXT ,
+                        time_intervals_start TIME,
+                        time_intervals_end TIME,
+                        likelihood_parameter INTEGER,
+                   
+                        FOREIGN KEY (user_id) REFERENCES user(user_id)
+                    )''')
+
+
 
     close_db_connection(conn)
     return
 
 
-create_table_data(dbname="test.db")
+dbname = "test2.db"
+
+create_table_data(dbname)
+
+
+problem_ids, problem_titles, problem_urls = read_leetcode_problems(file_path = "problemset_parsers/leetcode-all-problems.txt")
+populate_problems_table(problem_ids, problem_titles, problem_urls, dbname)
+
+# 
+problem_urls = read_raw_neetcode150_problems()
+populate_problems_in_dsa_sheet(problem_urls)
+add_problem_id_to_dsa_sheet()
 
