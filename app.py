@@ -1,27 +1,12 @@
 from flask import Flask, jsonify, request
-import sqlite3
-from utils.user import create_user, update_plan_daily_frequency, fetch_user_plan_ids, set_active_plan_id, fetch_user_active_planid
+from utils.notifications import update_or_insert_notification_parameters
+from utils.user import create_user, update_plan_daily_frequency, fetch_user_plan_ids, set_active_plan_id, fetch_user_active_planid, set_user_webhook, update_work_time_for_user
 from utils.plans import initiate_plan
 from utils.user_progress import fetch_all_pending_problem_list, fetch_all_completed_problem_list, complete_problem, fetch_daily_problem_list, fetch_daily_pending_problem_list
+from config import DEFAULT_WORK_STARTING_TIME, DEFAULT_WORK_ENDING_TIME
+
 
 app = Flask(__name__)
-
-def open_db_connection(dbname="test.db"):
-    try:
-        conn = sqlite3.connect(dbname)
-        cursor = conn.cursor()
-        return conn, cursor
-    except sqlite3.Error as e:
-        print("Error connecting to the database:", e)
-        return None, None
-
-def close_db_connection(conn):
-    if conn:
-        try:
-            conn.commit()
-            conn.close()
-        except sqlite3.Error as e:
-            print("Error closing the database connection:", e)
 
 @app.route('/')
 def hello_world():
@@ -33,11 +18,14 @@ def create_user_route():
         data = request.json
         user_id, username = data["user_id"], data["username"]
         email, active_plan_id = data["email"], data.get('active_plan_id')
+        webhook_string, is_deactive = data["webhook_string"], data.get("is_deactive", False)
+        work_starting_time = data.get("work_starting_time", DEFAULT_WORK_STARTING_TIME)
+        work_ending_time = data.get("work_ending_time", DEFAULT_WORK_ENDING_TIME)
 
-        if not all([user_id, username, email ]):
+        if not all([user_id, username, email, webhook_string ]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        create_user(user_id, username, email, active_plan_id)
+        create_user(user_id, username, email, active_plan_id, webhook_string, is_deactive, work_starting_time, work_ending_time)
         return jsonify({'message': 'User created successfully'}), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
@@ -75,26 +63,40 @@ def update_plan_frequency_route():
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/users/set-webhook', methods=['PUT'])
+def set_user_webhook_route():
+    try:
+        data = request.json
+        userid = data["user_id"]
+        webhook_string = data["webhook_string"]
+        if not all([userid, webhook_string]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        set_user_webhook(userid, webhook_string)
+
+        return jsonify({'message': 'Webhook successfully updated'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
 # apis for plan progress
-@app.route('/problems/complete', methods=['POST'])
+@app.route('/problems/mark-complete', methods=['POST'])
 def complete_problem_route():
     try:
-        # Get data from the request
         data = request.json
         user_id = data.get('user_id')
         problem_id = data.get('problem_id')
 
         if not all([user_id, problem_id]):
             return jsonify({'error': 'Missing required fields'}), 400
+        
+        try:
+            complete_problem(user_id, problem_id)
+            return jsonify({'message': 'problem marked completed successfully'}), 200
 
-        # Call the function to complete the problem
-        result = complete_problem(user_id, problem_id)
-
-        if result is True:
-            return jsonify({'message': 'Problem marked as complete'}), 200
-        else:
-            return jsonify({'error': result}), 400
-
+        except ValueError as e:
+            return jsonify({"error": str(e)}, 400)
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -117,27 +119,6 @@ def fetch_daily_problem_list_route():
         return jsonify({'error': str(ve)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-# # api for viewing backlog
-# @app.route('/problems/backlog', methods=['GET'])
-# def fetch_backlog_problem_list_route():
-#     try:
-#         user_id = request.args.get('user_id')
-#         if not user_id:
-#             return jsonify({'error': 'User ID is required'}), 400
-
-#         backlog_problem_list = fetch_backlog_problem_list(user_id)
-
-#         if len(backlog_problem_list) >= 0:
-#             return jsonify({'backlog_problem_list': backlog_problem_list}), 200
-#         else:
-#             return jsonify({'message': 'No daily problems available'}), 200
-
-#     except ValueError as ve:
-#         return jsonify({'error': str(ve)}), 400
-#     except Exception as e:
-#         return jsonify({'error': str(e)}), 500
-
 
 # api to fetch pending problems for the day
 @app.route('/users/problems/daily-pending', methods=['GET'])
@@ -236,7 +217,44 @@ def set_active_plan_id_route():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+@app.route('/users/notification-parameters/update', methods=['POST'])
+def update_notification_parameters():
+    try:
+        data = request.json
+        user_id = data["user_id"]
+        for params in data["notification_parameters"]:
+            time_intervals_start = params.get('time_interval_start')
+            time_intervals_end = params.get('time_interval_end')
+            likelihood_parameter = params.get('likelihood_parameter')
+
+            update_or_insert_notification_parameters(user_id, time_intervals_start, time_intervals_end, likelihood_parameter)
+
+        return jsonify({"message": "Notification parameters updated successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
+@app.route('/users/update-work-time', methods=['PUT'])
+def update_work_time():
+    try:
+        data = request.json
+        user_id = data["user_id"]
+        work_start_time = data.get("work_start_time")
+        work_end_time = data.get("work_end_time")
+
+        if not all([user_id, work_start_time, work_end_time]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        try:
+            update_work_time_for_user(user_id, work_start_time, work_end_time)
+            return jsonify({'message': 'Work time updated successfully'}), 200
+        except TypeError as e:
+            return jsonify({"error": str(e)}), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
