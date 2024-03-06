@@ -107,7 +107,7 @@ def should_send_notification(notification_parameters):
     r = notification_parameters["remaining_time_bins_per_problem"]
     k = notification_parameters["likelihood_factor"]
     w1, w2 = 0.5, 0.8
-    p = (a/r)*w1 + k*w2
+    p = (a/r)*w1 + k*w2*0.1
     print("p val: ", p)
     return p > threshold_val
 
@@ -120,7 +120,7 @@ async def fetch_notification_parameters_for_user(userid):
     likelihood_factor = fetch_likelihood_factor_for_time_interval(userid)
 
     print("dialy pending problem", daily_pending_problems)
-    print("remaining time :", remaining_time_bins_per_problem)
+    print("remaining time bins :", remaining_time_bins_per_problem)
     print("likeihood", likelihood_factor)
 
     if not all([len(daily_pending_problems), likelihood_factor, remaining_time_bins_per_problem]):
