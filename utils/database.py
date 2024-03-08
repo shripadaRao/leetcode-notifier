@@ -1,7 +1,7 @@
 import sqlite3
+from config import RUNNING_DB
 
-
-def open_db_connection(dbname="test2.db"):
+def open_db_connection(dbname=RUNNING_DB):
     try:
         conn = sqlite3.connect(dbname)
         cursor = conn.cursor()

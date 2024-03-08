@@ -1,5 +1,6 @@
 from datetime import time
 
+RUNNING_DB = "prod.db"
 
 DEFAULT_WORK_STARTING_TIME = time(9, 0)  # 9 am
 DEFAULT_WORK_ENDING_TIME = time(23, 0)   # 11 pm

@@ -1,8 +1,10 @@
 
+from config import RUNNING_DB
 from utils.database import open_db_connection, close_db_connection
 from problemset_parsers import *
 from problemset_parsers.dsa_sheet_parser import read_raw_neetcode150_problems, populate_problems_in_dsa_sheet, add_problem_id_to_dsa_sheet
 from problemset_parsers.problem_parser import populate_problems_table,  read_leetcode_problems  
+import os.path
 
 def create_table_data(dbname):
     conn, cursor = open_db_connection(dbname)
@@ -80,16 +82,19 @@ def create_table_data(dbname):
     return
 
 
-dbname = "test2.db"
+dbname = "test.db"
 
-create_table_data(dbname)
+if __name__ == "__main__":
+    if os.path.isfile(dbname):
+        print("DB already present")
+        exit(0)
 
+    create_table_data(dbname)
 
-problem_ids, problem_titles, problem_urls = read_leetcode_problems(file_path = "problemset_parsers/leetcode-all-problems.txt")
-populate_problems_table(problem_ids, problem_titles, problem_urls, dbname)
+    problem_ids, problem_titles, problem_urls = read_leetcode_problems(file_path = "problemset_parsers/leetcode-all-problems.txt")
+    populate_problems_table(problem_ids, problem_titles, problem_urls, dbname)
 
-# 
-problem_urls = read_raw_neetcode150_problems()
-populate_problems_in_dsa_sheet(problem_urls)
-add_problem_id_to_dsa_sheet()
+    problem_urls = read_raw_neetcode150_problems()
+    populate_problems_in_dsa_sheet(problem_urls)
+    add_problem_id_to_dsa_sheet()
 
