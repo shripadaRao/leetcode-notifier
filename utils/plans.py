@@ -52,7 +52,6 @@ def initiate_plan(dsa_sheet_id, problem_frequency, userid):
     try:
         plan_id = create_plan(dsa_sheet_id, problem_frequency, userid)
         populate_boilerplate_user_progress(userid, dsa_sheet_id, plan_id)
+        return plan_id
     except Exception as e:
         print("Error initiating plan:", e)
-
-# initiate_plan("1", 4, "srao")

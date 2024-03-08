@@ -2,7 +2,8 @@ from datetime import datetime
 import sqlite3
 import uuid
 from utils.database import open_db_connection, close_db_connection
-from config import DEFAULT_WORK_STARTING_TIME, DEFAULT_WORK_ENDING_TIME
+from config import DEFAULT_NOTIFICATION_PARAMS, DEFAULT_WORK_STARTING_TIME, DEFAULT_WORK_ENDING_TIME
+from utils.notifications import update_or_insert_notification_parameters
 
 def generate_user_id():
     return str(uuid.uuid4())
@@ -10,6 +11,9 @@ def generate_user_id():
 
 def create_user(user_id, username, email, active_plan_id=None, webhook_string = None, is_deactive=False, work_starting_time= DEFAULT_WORK_STARTING_TIME, work_ending_time=DEFAULT_WORK_ENDING_TIME):
     conn, cursor = open_db_connection()
+    # work_start_time = datetime.strptime(work_start_time, "%H:%M:%S").time().strftime("%H:%M:%S")
+    # work_end_time = datetime.strptime(work_end_time, "%H:%M:%S").time().strftime("%H:%M:%S")
+
     if conn:
         try:
             cursor.execute('''INSERT INTO users (user_id, username, email, active_plan_id, webhook_string, is_deactive, work_starting_time, work_ending_time)
@@ -141,3 +145,34 @@ def update_work_time_for_user(user_id, work_start_time, work_end_time):
         raise e
     finally:
         close_db_connection(conn)
+
+
+def set_default_notification_params_for_userid(user_id):
+    data = DEFAULT_NOTIFICATION_PARAMS
+    try: 
+        for params in data["notification_parameters"]:
+            time_intervals_start = params.get('time_interval_start')
+            time_intervals_end = params.get('time_interval_end')
+            likelihood_parameter = params.get('likelihood_parameter')
+
+            update_or_insert_notification_parameters(user_id, time_intervals_start, time_intervals_end, likelihood_parameter)
+
+    except Exception as e:
+        raise Exception(e, "Failed to set default notification params")
+    
+def check_user_exists(user_id):
+    conn, cursor = open_db_connection()
+    try:
+        q = """SELECT user_id FROM users WHERE user_id = ?"""
+        cursor.execute(q, (user_id,))
+        row = cursor.fetchone()
+        if row:
+            return True
+        else:
+            return False
+        
+    except sqlite3.Error as e:
+        raise Exception(f"Error checking user existance in db. {e}")
+    finally:
+        close_db_connection(conn)
+

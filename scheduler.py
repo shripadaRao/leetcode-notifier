@@ -4,7 +4,7 @@ from utils.notifications import send_user_notifications
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 async def start_notification_scheduler(scheduler):
-    scheduler.add_job(send_user_notifications, trigger='interval', seconds=NOTIFICATION_BIN_INTERVAL)
+    scheduler.add_job(send_user_notifications, trigger='interval', minutes=NOTIFICATION_BIN_INTERVAL)
     scheduler.start()
     print("Notification scheduler started")
 

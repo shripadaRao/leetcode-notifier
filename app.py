@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from utils.notifications import update_or_insert_notification_parameters
-from utils.user import create_user, update_plan_daily_frequency, fetch_user_plan_ids, set_active_plan_id, fetch_user_active_planid, set_user_webhook, update_work_time_for_user
+from utils.user import check_user_exists, create_user, set_default_notification_params_for_userid, update_plan_daily_frequency, fetch_user_plan_ids, set_active_plan_id, fetch_user_active_planid, set_user_webhook, update_work_time_for_user
 from utils.plans import initiate_plan
 from utils.user_progress import fetch_all_pending_problem_list, fetch_all_completed_problem_list, complete_problem, fetch_daily_problem_list, fetch_daily_pending_problem_list
 from config import DEFAULT_WORK_STARTING_TIME, DEFAULT_WORK_ENDING_TIME
@@ -26,10 +26,21 @@ def create_user_route():
             return jsonify({'error': 'Missing required fields'}), 400
 
         create_user(user_id, username, email, active_plan_id, webhook_string, is_deactive, work_starting_time, work_ending_time)
+        # update notification parameters for user with default vals
+        set_default_notification_params_for_userid(user_id)
         return jsonify({'message': 'User created successfully'}), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     
+@app.route('/users/check-existance/<user_id>', methods=['GET'])
+def check_user_exists_route(user_id):
+    try:
+        isUserExists = check_user_exists(user_id)
+        return jsonify({"exists": isUserExists}), 200
+
+    except ValueError as e:
+        return jsonify({"error": f"error in checking existance of user {e}"}), 500
+
 
 # create plan
 @app.route('/plans/initiate', methods=['POST'])
@@ -42,8 +53,8 @@ def initiate_plan_route():
         if not all([dsa_sheet_id, problem_frequency, userid]):
             return jsonify({'error': 'Missing required fields'}), 400
         # handle edge cases for input of problem_frequency
-        initiate_plan(dsa_sheet_id, problem_frequency, userid)
-        return jsonify({'message': 'Plan initiated successfully'}), 201
+        plan_id = initiate_plan(dsa_sheet_id, problem_frequency, userid)
+        return jsonify({'message': 'Plan initiated successfully', "plan_id": plan_id}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
